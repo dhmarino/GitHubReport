@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 // conjunto de atributos. Cambie estos valores de atributo para modificar la información
 // asociada con un ensamblado.
 [assembly: AssemblyTitle("GitHubReport")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("Reporte de repositorios usando la API de Github")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("GitHubReport")]
