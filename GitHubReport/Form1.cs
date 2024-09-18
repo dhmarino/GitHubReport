@@ -199,11 +199,19 @@ namespace GitHubReport
                     doc.Add(new Paragraph("Listado de Repositorios y Últimos Commits", Font1));
                     doc.Add(new Paragraph(" ")); // Espacio en blanco
 
-                    // Agregar cada repositorio y su último commit
+                    int cantRepos = 0;
+                    // Agregar cada repositorio, su último commit y llevamos un contador de repositorios
                     foreach (var repoInfo in repoData)
                     {
-                        if(!repoInfo.Contains("dhmarino")) doc.Add(new Paragraph(repoInfo));
+                        if (!repoInfo.Contains("dhmarino"))
+                        {
+                            cantRepos++;
+                            doc.Add(new Paragraph(repoInfo));
+                        }
                     }
+
+                    doc.Add(new Paragraph(" ")); // Espacio en blanco
+                    doc.Add(new Paragraph("Son " + cantRepos + " repositorios")); 
 
                     doc.Close();
                     writer.Close();
