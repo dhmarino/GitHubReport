@@ -35,13 +35,14 @@ namespace GitHubReport
             lblInfo.Text = string.Empty;
         }
 
+        //Boton que lista los repositorios y el ultimo commit en el ListBox
         private async void BtnObtenerRepositorios_Click(object sender, EventArgs e)
         {
             picBoxWait.Visible = true;
             BtnExportPdf.Enabled = false;
             BtnObtenerRepositorios.Enabled = false;
 
-            var repos = await GetRepositoriesAsync();
+            var repos = await GetAllReposAsync();
             foreach (var repo in repos)
             {
                 string lastCommit = await GetLastCommitAsync(repo.Name);
@@ -53,6 +54,8 @@ namespace GitHubReport
             BtnExportPdf.Enabled = true;
             BtnObtenerRepositorios.Enabled = true;
         }
+        //Este GetRepositoriesAsync() tiene el límite de 30 repositorios al hacer una solicitud a la API de GitHub
+        //es un comportamiento predeterminado, ya que GitHub API devuelve por defecto solo los primeros 30 resultados
         private async Task<List<Repository>> GetRepositoriesAsync()
         {
             using (HttpClient client = new HttpClient())
@@ -71,7 +74,54 @@ namespace GitHubReport
                 return new List<Repository>();
             }
         }
+        //Esta es la opcion para traer mas de 30 repositorios
+        private async Task<List<Repository>> GetAllReposAsync()
+        {
+            List<Repository> allRepos = new List<Repository>();
+            int page = 1;
+            int perPage = 30; // Puedes ajustar este valor según necesites (hasta un máximo de 100)
+            bool hasMoreRepos = true;
 
+            while (hasMoreRepos)
+            {
+                // URL de la API con paginación
+                var url = $"https://api.github.com/user/repos?per_page={perPage}&page={page}";
+
+                // Hacer la solicitud para obtener la página actual de repositorios
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("User-Agent", "request"); // GitHub requiere un User-Agent
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", personalAccessToken);
+
+                using (var client = new HttpClient())
+                {
+                    var response = await client.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var jsonResponse = await response.Content.ReadAsStringAsync();
+                        var repos = JsonConvert.DeserializeObject<List<Repository>>(jsonResponse);
+
+                        // Añadir los repositorios obtenidos a la lista total
+                        allRepos.AddRange(repos);
+
+                        // Verificar si todavía hay más repositorios
+                        if (repos.Count < perPage)
+                        {
+                            hasMoreRepos = false; // Si la cantidad de repos obtenidos es menor al límite, no hay más páginas
+                        }
+                        else
+                        {
+                            page++; // Incrementar la página para la siguiente solicitud
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Error al obtener los repositorios: " + response.ReasonPhrase);
+                    }
+                }
+            }
+
+            return allRepos;
+        }
         private async Task<string> GetLastCommitAsync(string repoName)
         {
             using (HttpClient client = new HttpClient())
@@ -96,25 +146,23 @@ namespace GitHubReport
         {
             public string Name { get; set; }
         }
-
         public class Commit
         {
             [JsonProperty("commit")]
             public CommitInfo CommitInfo { get; set; }
         }
-
         public class CommitInfo
         {
             public string Message { get; set; }
         }
-
+        //Boton que exporta el litado Repositorio - Ultimo commit a un PDF
         private async void BtnExportPdf_Click(object sender, EventArgs e)
         {
             picBoxWait.Visible = true;
             BtnExportPdf.Enabled = false;
             BtnObtenerRepositorios.Enabled = false;
             
-            var repos = await GetRepositoriesAsync();
+            var repos = await GetAllReposAsync();
             List<string> repoData = new List<string>();
             foreach (var repo in repos)
             {
@@ -223,6 +271,7 @@ namespace GitHubReport
             }
         }
 
+        //Boton que exporta por cada repositorio un PDF con todos sus commits 
         private async void BtnCommitsPorRepositorio_Click(object sender, EventArgs e)
         {
             using (FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog())
@@ -243,12 +292,8 @@ namespace GitHubReport
                     string filePath = @"ruta/al/archivo/credenciales.json"; // Cambia por la ruta correcta
                     credentialsLoader.LoadCredentials(filePath);
 
-                    // Obtener las credenciales
-                    string githubUsername = credentialsLoader.GetUsername();
-                    string personalAccessToken = credentialsLoader.GetToken();
-
                     // Obtener los repositorios con todos sus commits
-                    var repos = await GetReposWithCommits();
+                    var repos = await GetReposWithCommitsAsync();
 
                     // Exportar los commits de cada repositorio a un PDF en la carpeta seleccionada
                     ExportCommitsToPDF(repos, selectedPath);
@@ -263,66 +308,135 @@ namespace GitHubReport
                 }
             }
         }
-
         public class GitHubRepo
         {
             public string Name { get; set; }
             public bool IsPrivate { get; set; }
-            public List<string> Commits { get; set; } // Lista de todos los commits
+            public List<GitHubCommit> Commits { get; set; } = new List<GitHubCommit>();
         }
-
-        public async Task<List<GitHubRepo>> GetReposWithCommits()
+        public class GitHubCommit
         {
-            var repos = new List<GitHubRepo>();
+            public string Message { get; set; }
+            public DateTime Date { get; set; }
+        }
+        //Obtener todos los repositorios (con paginación)
+        private async Task<List<GitHubRepo>> GetAllReposForCommitsPorRepositorioAsync()
+        {
+            List<GitHubRepo> allRepos = new List<GitHubRepo>();
+            int page = 1;
+            int perPage = 30; // Ajusta este valor hasta un máximo de 100 si es necesario
+            bool hasMoreRepos = true;
 
-            using (var client = new HttpClient())
+            while (hasMoreRepos)
             {
-                client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AppName", "1.0"));
-                var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{githubUsername}:{personalAccessToken}"));
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authToken);
+                // URL de la API con paginación
+                var url = $"https://api.github.com/user/repos?per_page={perPage}&page={page}";
 
-                // Obtener todos los repositorios del usuario
-                var response = await client.GetAsync($"https://api.github.com/user/repos");
-                if (response.IsSuccessStatusCode)
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("User-Agent", "request"); // GitHub requiere un User-Agent
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", personalAccessToken);
+
+                using (var client = new HttpClient())
                 {
-                    var json = await response.Content.ReadAsStringAsync();
-                    dynamic reposList = JsonConvert.DeserializeObject(json);
-
-                    foreach (var repo in reposList)
+                    var response = await client.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
                     {
-                        string repoName = repo.name;
-                        bool isPrivate = repo.@private;
+                        var jsonResponse = await response.Content.ReadAsStringAsync();
+                        var repos = JsonConvert.DeserializeObject<List<GitHubRepo>>(jsonResponse);
 
-                        // Inicializar una lista para almacenar todos los commits de este repositorio
-                        var commitMessages = new List<string>();
+                        allRepos.AddRange(repos);
 
-                        // Obtener todos los commits del repositorio
-                        var commitsResponse = await client.GetAsync($"https://api.github.com/repos/{githubUsername}/{repoName}/commits");
-                        if (commitsResponse.IsSuccessStatusCode)
+                        if (repos.Count < perPage)
                         {
-                            var commitsJson = await commitsResponse.Content.ReadAsStringAsync();
-                            dynamic commitsList = JsonConvert.DeserializeObject(commitsJson);
-
-                            // Agregar todos los mensajes de los commits
-                            foreach (var commit in commitsList)
-                            {
-                                string commitMessage = commit.commit.message;
-                                DateTime commitDate = commit.commit.committer.date;
-                                commitMessages.Add($"{commitDate.ToString("yyyy-MM-dd HH:mm:ss")} - {commitMessage}");
-                            }
+                            hasMoreRepos = false;
                         }
-
-                        repos.Add(new GitHubRepo
+                        else
                         {
-                            Name = repoName,
-                            IsPrivate = isPrivate,
-                            Commits = commitMessages // Agregar los commits al objeto del repositorio
-                        });
+                            page++;
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Error al obtener los repositorios: " + response.ReasonPhrase);
                     }
                 }
             }
 
-            return repos;
+            return allRepos;
+        }
+        //Obtener todos los commits para cada repositorio (con paginación):
+        private async Task<List<GitHubCommit>> GetCommitsForRepoAsync(string repoName)
+        {
+            List<GitHubCommit> allCommits = new List<GitHubCommit>();
+            int page = 1;
+            int perPage = 100; // Límite de GitHub
+            bool hasMoreCommits = true;
+
+            while (hasMoreCommits)
+            {
+                // URL de la API para obtener commits del repositorio con paginación
+                var url = $"https://api.github.com/repos/{githubUsername}/{repoName}/commits?per_page={perPage}&page={page}";
+
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("User-Agent", "request"); // GitHub requiere un User-Agent
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", personalAccessToken);
+
+                using (var client = new HttpClient())
+                {
+                    var response = await client.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var jsonResponse = await response.Content.ReadAsStringAsync();
+                        var commits = JsonConvert.DeserializeObject<List<dynamic>>(jsonResponse);
+
+                        // Extraer el mensaje y la fecha del commit
+                        foreach (var commit in commits)
+                        {
+                            var message = (string)commit.commit.message;
+                            var date = (DateTime)commit.commit.committer.date;
+
+                            allCommits.Add(new GitHubCommit
+                            {
+                                Message = message,
+                                Date = date
+                            });
+                        }
+
+                        if (commits.Count < perPage)
+                        {
+                            hasMoreCommits = false; // No hay más commits
+                        }
+                        else
+                        {
+                            page++;
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception($"Error al obtener los commits para el repositorio {repoName}: " + response.ReasonPhrase);
+                    }
+                }
+            }
+
+            return allCommits;
+        }
+        //Obtener commits de todos los repositorios:
+        private async Task<List<GitHubRepo>> GetReposWithCommitsAsync()
+        {
+            List<GitHubRepo> reposWithCommits = new List<GitHubRepo>();
+
+            // Obtener todos los repositorios del usuario
+            var repos = await GetAllReposForCommitsPorRepositorioAsync();
+
+            foreach (var repo in repos)
+            {
+                // Obtener todos los commits para el repositorio actual
+                var commits = await GetCommitsForRepoAsync(repo.Name);
+                repo.Commits = commits;
+                reposWithCommits.Add(repo);
+            }
+
+            return reposWithCommits;
         }
         private void ExportCommitsToPDF(List<GitHubRepo> repos, string folderPath)
         {
@@ -357,7 +471,8 @@ namespace GitHubReport
                     // Agregar los commits
                     foreach (var commit in repo.Commits)
                     {
-                        doc.Add(new Paragraph(commit));
+                        // Añadir mensaje y fecha del commit
+                        doc.Add(new Paragraph(commit.Date.ToString("yyyy-MM-dd HH:mm:ss") + " - " + commit.Message));
                     }
 
                     doc.Close();
@@ -367,7 +482,6 @@ namespace GitHubReport
                 lblInfo.Refresh();
             }
         }
-
         ////////////////////////////////////////////////////////////////////////////////////////////////
         ///Agrego paginado
         public class PdfPageNumbers : PdfPageEventHelper
