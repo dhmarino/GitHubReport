@@ -34,12 +34,14 @@
             this.BtnExportPdf = new System.Windows.Forms.Button();
             this.picBoxWait = new System.Windows.Forms.PictureBox();
             this.lblVersion = new System.Windows.Forms.Label();
+            this.BtnCommitsPorRepositorio = new System.Windows.Forms.Button();
+            this.lblInfo = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.picBoxWait)).BeginInit();
             this.SuspendLayout();
             // 
             // BtnObtenerRepositorios
             // 
-            this.BtnObtenerRepositorios.Location = new System.Drawing.Point(142, 811);
+            this.BtnObtenerRepositorios.Location = new System.Drawing.Point(130, 835);
             this.BtnObtenerRepositorios.Name = "BtnObtenerRepositorios";
             this.BtnObtenerRepositorios.Size = new System.Drawing.Size(296, 74);
             this.BtnObtenerRepositorios.TabIndex = 0;
@@ -58,7 +60,7 @@
             // 
             // BtnExportPdf
             // 
-            this.BtnExportPdf.Location = new System.Drawing.Point(583, 811);
+            this.BtnExportPdf.Location = new System.Drawing.Point(571, 835);
             this.BtnExportPdf.Name = "BtnExportPdf";
             this.BtnExportPdf.Size = new System.Drawing.Size(296, 74);
             this.BtnExportPdf.TabIndex = 2;
@@ -69,7 +71,7 @@
             // picBoxWait
             // 
             this.picBoxWait.Image = global::GitHubReport.Properties.Resources._1412463378loading_gear_4;
-            this.picBoxWait.Location = new System.Drawing.Point(921, 811);
+            this.picBoxWait.Location = new System.Drawing.Point(909, 835);
             this.picBoxWait.Name = "picBoxWait";
             this.picBoxWait.Size = new System.Drawing.Size(86, 74);
             this.picBoxWait.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -79,17 +81,38 @@
             // lblVersion
             // 
             this.lblVersion.AutoSize = true;
-            this.lblVersion.Location = new System.Drawing.Point(857, 897);
+            this.lblVersion.Location = new System.Drawing.Point(858, 796);
             this.lblVersion.Name = "lblVersion";
             this.lblVersion.Size = new System.Drawing.Size(85, 25);
             this.lblVersion.TabIndex = 4;
             this.lblVersion.Text = "Version";
             // 
+            // BtnCommitsPorRepositorio
+            // 
+            this.BtnCommitsPorRepositorio.Location = new System.Drawing.Point(353, 935);
+            this.BtnCommitsPorRepositorio.Name = "BtnCommitsPorRepositorio";
+            this.BtnCommitsPorRepositorio.Size = new System.Drawing.Size(296, 74);
+            this.BtnCommitsPorRepositorio.TabIndex = 5;
+            this.BtnCommitsPorRepositorio.Text = "Exportar Commits por cada Repositorio a PDF";
+            this.BtnCommitsPorRepositorio.UseVisualStyleBackColor = true;
+            this.BtnCommitsPorRepositorio.Click += new System.EventHandler(this.BtnCommitsPorRepositorio_Click);
+            // 
+            // lblInfo
+            // 
+            this.lblInfo.AutoSize = true;
+            this.lblInfo.Location = new System.Drawing.Point(33, 1020);
+            this.lblInfo.Name = "lblInfo";
+            this.lblInfo.Size = new System.Drawing.Size(99, 25);
+            this.lblInfo.TabIndex = 6;
+            this.lblInfo.Text = "label Info";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1044, 931);
+            this.ClientSize = new System.Drawing.Size(1044, 1067);
+            this.Controls.Add(this.lblInfo);
+            this.Controls.Add(this.BtnCommitsPorRepositorio);
             this.Controls.Add(this.lblVersion);
             this.Controls.Add(this.picBoxWait);
             this.Controls.Add(this.BtnExportPdf);
@@ -112,6 +135,8 @@
         private System.Windows.Forms.Button BtnExportPdf;
         private System.Windows.Forms.PictureBox picBoxWait;
         private System.Windows.Forms.Label lblVersion;
+        private System.Windows.Forms.Button BtnCommitsPorRepositorio;
+        private System.Windows.Forms.Label lblInfo;
     }
 }
 

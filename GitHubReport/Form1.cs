@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using System.IO;
 using iTextSharp.text.pdf;
 using iTextSharp.text;
+using System.Text;
 
 namespace GitHubReport
 {
@@ -31,6 +32,7 @@ namespace GitHubReport
             var versiones = typeof(Form1).Assembly.GetName().Version;
             lblVersion.Text = "Versión " + versiones.ToString();
             picBoxWait.Visible = false;
+            lblInfo.Text = string.Empty;
         }
 
         private async void BtnObtenerRepositorios_Click(object sender, EventArgs e)
@@ -220,5 +222,204 @@ namespace GitHubReport
                 MessageBox.Show("PDF exportado exitosamente");
             }
         }
+
+        private async void BtnCommitsPorRepositorio_Click(object sender, EventArgs e)
+        {
+            using (FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog())
+            {
+                DialogResult result = folderBrowserDialog.ShowDialog();
+
+                if (result == DialogResult.OK && !string.IsNullOrWhiteSpace(folderBrowserDialog.SelectedPath))
+                {
+                    string selectedPath = folderBrowserDialog.SelectedPath;
+
+                    lblInfo.Text = "Obteniendo informacion de la API de GitHub. ¡¡¡POR FAVOR ESPERE!!!";
+                    lblInfo.Refresh();
+                    picBoxWait.Visible = true;
+
+                    GitHubCredentialsLoader credentialsLoader = new GitHubCredentialsLoader();
+
+                    // Cargar las credenciales desde el archivo credenciales.json
+                    string filePath = @"ruta/al/archivo/credenciales.json"; // Cambia por la ruta correcta
+                    credentialsLoader.LoadCredentials(filePath);
+
+                    // Obtener las credenciales
+                    string githubUsername = credentialsLoader.GetUsername();
+                    string personalAccessToken = credentialsLoader.GetToken();
+
+                    // Obtener los repositorios con todos sus commits
+                    var repos = await GetReposWithCommits();
+
+                    // Exportar los commits de cada repositorio a un PDF en la carpeta seleccionada
+                    ExportCommitsToPDF(repos, selectedPath);
+                    picBoxWait.Visible = false;
+                    lblInfo.Text = string.Empty;
+                    lblInfo.Refresh();
+                    MessageBox.Show("Se han generado los PDFs de los commits para cada repositorio en la carpeta " + selectedPath, "Info", MessageBoxButtons.OK ,MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("No se seleccionó ninguna carpeta.");
+                }
+            }
+        }
+
+        public class GitHubRepo
+        {
+            public string Name { get; set; }
+            public bool IsPrivate { get; set; }
+            public List<string> Commits { get; set; } // Lista de todos los commits
+        }
+
+        public async Task<List<GitHubRepo>> GetReposWithCommits()
+        {
+            var repos = new List<GitHubRepo>();
+
+            using (var client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AppName", "1.0"));
+                var authToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{githubUsername}:{personalAccessToken}"));
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authToken);
+
+                // Obtener todos los repositorios del usuario
+                var response = await client.GetAsync($"https://api.github.com/user/repos");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    dynamic reposList = JsonConvert.DeserializeObject(json);
+
+                    foreach (var repo in reposList)
+                    {
+                        string repoName = repo.name;
+                        bool isPrivate = repo.@private;
+
+                        // Inicializar una lista para almacenar todos los commits de este repositorio
+                        var commitMessages = new List<string>();
+
+                        // Obtener todos los commits del repositorio
+                        var commitsResponse = await client.GetAsync($"https://api.github.com/repos/{githubUsername}/{repoName}/commits");
+                        if (commitsResponse.IsSuccessStatusCode)
+                        {
+                            var commitsJson = await commitsResponse.Content.ReadAsStringAsync();
+                            dynamic commitsList = JsonConvert.DeserializeObject(commitsJson);
+
+                            // Agregar todos los mensajes de los commits
+                            foreach (var commit in commitsList)
+                            {
+                                string commitMessage = commit.commit.message;
+                                DateTime commitDate = commit.commit.committer.date;
+                                commitMessages.Add($"{commitDate.ToString("yyyy-MM-dd HH:mm:ss")} - {commitMessage}");
+                            }
+                        }
+
+                        repos.Add(new GitHubRepo
+                        {
+                            Name = repoName,
+                            IsPrivate = isPrivate,
+                            Commits = commitMessages // Agregar los commits al objeto del repositorio
+                        });
+                    }
+                }
+            }
+
+            return repos;
+        }
+        private void ExportCommitsToPDF(List<GitHubRepo> repos, string folderPath)
+        {
+            foreach (var repo in repos)
+            {
+                // Construir la ruta completa del archivo PDF en la carpeta seleccionada
+                string pdfFileName = Path.Combine(folderPath, $"{repo.Name}.pdf");
+
+                using (FileStream fs = new FileStream(pdfFileName, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    Document doc = new Document(PageSize.A4);
+                    PdfWriter writer = PdfWriter.GetInstance(doc, fs);
+
+                    // Asignar la clase que maneja el paginado al documento
+                    PdfPageNumbers pageEventHandler = new PdfPageNumbers();
+                    writer.PageEvent = pageEventHandler;
+
+                    doc.Open();
+
+                    //Fonts
+                    iTextSharp.text.Font Font1 = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.HELVETICA, 14, iTextSharp.text.Font.BOLD, BaseColor.BLACK);
+                    iTextSharp.text.Font Font2 = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.COURIER, 12, iTextSharp.text.Font.BOLD, BaseColor.BLACK);
+                    iTextSharp.text.Font Font3 = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.COURIER, 9, iTextSharp.text.Font.NORMAL, BaseColor.BLACK);
+                    iTextSharp.text.Font Font4 = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.COURIER, 12, iTextSharp.text.Font.NORMAL, BaseColor.BLACK);
+                    
+                    // Agregar título
+                    doc.Add(new Paragraph(repo.Name, Font1));
+                    doc.Add(new Paragraph($"Visibilidad: {(repo.IsPrivate ? "Privado" : "Público")}"));
+                    doc.Add(new Paragraph("Commits:"));
+                    doc.Add(new Paragraph(" ")); // Espacio en blanco
+
+                    // Agregar los commits
+                    foreach (var commit in repo.Commits)
+                    {
+                        doc.Add(new Paragraph(commit));
+                    }
+
+                    doc.Close();
+                    writer.Close();
+                }
+                lblInfo.Text = "Se genero el pdf de " + repo.Name;
+                lblInfo.Refresh();
+            }
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////
+        ///Agrego paginado
+        public class PdfPageNumbers : PdfPageEventHelper
+        {
+            private PdfContentByte cb;
+            private BaseFont bf = null;
+            private int pageNumber = 0;
+            private Image githubLogo;
+
+            public override void OnOpenDocument(PdfWriter writer, Document document)
+            {
+                // Configurar la fuente y obtener el PdfContentByte para escribir en el PDF
+                bf = BaseFont.CreateFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
+                cb = writer.DirectContent;
+
+                try
+                {
+                    // Cargar la imagen del logo de GitHub (debe estar en la ruta especificada)
+                    githubLogo = Image.GetInstance("github.png"); // ruta y nombre del logo
+                    githubLogo.ScaleToFit(50f, 50f); // Ajusta el tamaño de la imagen
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error al cargar la imagen: " + ex.Message);
+                }
+            }
+
+            public override void OnEndPage(PdfWriter writer, Document document)
+            {
+                pageNumber++;
+                Rectangle pageSize = document.PageSize;
+
+                // Escribir el número de página en el pie
+                string text = "Página " + pageNumber.ToString();
+                float x = (pageSize.Left + pageSize.Right) / 2;
+                float y = pageSize.GetBottom(15);
+                cb.BeginText();
+                cb.SetFontAndSize(bf, 10); // Tamaño de la fuente
+                cb.ShowTextAligned(PdfContentByte.ALIGN_CENTER, text, x, y, 0);
+                cb.EndText();
+
+                // Posicionar el logo en la esquina superior derecha de cada página
+                if (githubLogo != null)
+                {
+                    float logoX = pageSize.GetRight(70); // Ajustar la distancia desde el borde derecho
+                    float logoY = pageSize.GetTop(70); // Ajustar la distancia desde el borde superior
+                    githubLogo.SetAbsolutePosition(logoX, logoY); // Establecer la posición
+                    cb.AddImage(githubLogo); // Agregar la imagen al contenido de la página
+                }
+            }
+        }
+        ///Fin agregar paginado
+        ////////////////////////////////////////////////////////////////////////////////////////////////////
     }
 }
