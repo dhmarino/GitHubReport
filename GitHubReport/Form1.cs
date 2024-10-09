@@ -311,6 +311,7 @@ namespace GitHubReport
         public class GitHubRepo
         {
             public string Name { get; set; }
+            [JsonProperty("private")]  // Mapea el campo "private" de la respuesta JSON
             public bool IsPrivate { get; set; }
             public List<GitHubCommit> Commits { get; set; } = new List<GitHubCommit>();
         }
